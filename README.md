@@ -1,6 +1,9 @@
 # Supernovae
 A W.I.P chat platform made as a learning experience and to test out ideas I've had.
 
+## To-Dos
+- Learn about CPS and implement it into my code when possible.
+
 ## Ideas
 - Decentralisation
   - Would be more robust as it'd allow users to host their own instances,
