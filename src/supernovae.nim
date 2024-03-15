@@ -6,3 +6,5 @@ import ./supernovae/[
   models,
   core
 ]
+
+discard compiles(accounts) and compiles(models) and compiles(core)
