@@ -5,21 +5,21 @@ import nulid
 import norm/[postgres, sqlite, pool]
 
 type
-  DbConns = sqlite.DbConn | postgres.DbConn
+  DbConns* = sqlite.DbConn | postgres.DbConn
 
-  SInstance*[D: DbConns] = ref object
-    threadpool*: MasterHandle
+  SInstance*[Db: DbConns] = ref object
+    threadpool*: Master
     webserv*: Server
     idgen*: ULIDGenerator
-    db*: Pool[D]
+    db*: Pool[Db]
 
-proc new*(_: typeof SInstance, masterHandle: MasterHandle, serv: Server,
-    db: DbConns, poolSize: Positive = 4): SInstance =
-  result = SInstance(
-    threadpool: masterHandle,
+proc newSupernovae*[Db: DbConns](serv: Server, db: Db,
+  poolSize: Positive = 4): SInstance[Db] =
+  result = SInstance[Db](
+    threadpool: createMaster(),
     webserv: serv,
     idgen: initUlidGenerator(),
-    db: newPool(poolSize, db)
+    db: newPool(poolSize, proc(): Db = db)
   )
 
 export results
