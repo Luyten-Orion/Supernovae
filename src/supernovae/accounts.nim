@@ -1,88 +1,86 @@
-import std/random
+import std/[
+  options, # Optional return types
+  tables   # Used for storing session IDs and timestamp authentication
+]
 
-import libsodium/sodium
-import malebolgia
-import nulid
-import norm/[postgres, sqlite, pool]
+import nulid # Used for ULID data type
 
-import ./[models, core]
-# TODO: Implement this.
-# For now, the file will contain a skeleton of how I want the API to look like.
+#[
+TODO: A
+]#
 
-const
-  TagChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-  EmptyUlid = ULID()
 
+# TODO: Maybe an abstraction that lets us group users together?
+# would be useful for profile sharing, perhaps (alt accounts)
 type
-  RollbackError = postgres.RollbackError | sqlite.RollbackError
+  AccountType* = enum
+    Local, External
 
-  AccountCreationError* = enum
-    DuplicatedUserID, EmailAlreadyInUse, AccountFromProviderInUse, 
+  Account* = ref object
+    # The ID of the account
+    uid*: ULID # Unique, if not primary, indexed
+    username*: string # A unique username used for identification
+    # Discriminators, should figure out a way to
+    # generate it on the db side first to prevent conflicts
+    #tag*: string
+    typ*: AccountType # A local of external account
+    defaultProfile*: ULID # Profile.uid, the default profile shown
 
-proc tagGenerator: string =
-  # TODO: Accept params to exclude certain characters from samples when used together
-  # Note: Seems like it'd be excessive to do this...
-  result.setLen(6)
-  
-  for i in 0..<result.len:
-    result[i] = sample(TagChars)
+  LocalAccount* = ref object
+    # Local information used for authentication
+    uid*: ULID # Same as 'Account', unique, if not primary, indexed
+    email*: string # Unique, indexed
+    password*: string # Encrypted using argon2
 
-proc ensureAccountDoesntExist(inst: SInstance, db: DbConns, email, username,
-  provider: AccountProvider): Result[tuple[acc: ULID, profile: ULID], AccountCreationError] =
-  # Wah
-  # The sequences where select queries return results
-  var
-    accRes: seq[Account]
-    accSrcRes: seq[AccountSource]
-    localAccRes: seq[LocalAccount]
-    profileRes: seq[Profile]
+  Session* = ref object
+    # Sessions for local accounts, could be scanned regularly to be
+    # cleaned up? Or could check every Nth login instead...
+    uid*: ULID # Unique, if not primary, indexed
+    owner*: ULID # Account.uid, indexed
+    timestamp*: int64 # Timestamp storing last known usage
 
-    tag = "000000"
-    accUid = EmptyUlid
-    profileUid = EmptyUlid
+  ExternalAccount* = ref object
+    # External information used for authentication
+    uid*: ULID # Same as 'Account', unique, if not primary, indexed
+    home*: string # URL of home instance, maybe a reference to a 'Source'?
+    authenticatedAt*: int64 # Timestamp so expiry can be checked against
 
-  # Validation
-  # First loop: Check for unique IDs
-  while true:
-    let
-      accUid = inst.idgen.ulid()
+  Profile* = ref object
+    # Profiles a user can have, users can have multiple profiles,
+    # but must *always* have one
+    uid*: ULID # Unique, if not primary, indexed
+    owner*: ULID # Account.uid
+    displayname*: string # Display name
+    bio*: string # About me
+    avatar*: string # Profile picture URL?
+    # Could use a field to indicate whether it's stored on a CDN or not,
+    # to shorten URLs? Something to consider.
+    #isCdn*: bool
 
-    db.select(accRes, "Account.uid = ?", accUid)
-    db.select(accSrcRes, "AccountSource.owner = ?", accUid)
-    db.select(localAccRes, "LocalAccount.uid = ?", accUid)
-    db.select(profileRes, "Profile.owner = ? OR Profile.uid = ?", accUid, profileUid)
+# API implementation start.
+# Constructors start.
+proc new*(_: typeof Account, uid: ULID, username: string, typ: AccountType
+  ): Account =
+  return Account(
+    uid: uid,
+    username: username,
+    typ: typ
+  )
 
-    if accRes.len == 0 and accSrcRes.len == 0 and localAccRes.len == 0 and profileRes.len == 0:
-      break
+proc new*(_: typeof LocalAccount, uid: ULID, email, password: string): LocalAccount =
+  return LocalAccount(
+    uid: uid,
+    email: email,
+    password: password
+  )
 
-  # TODO: Add more validation
+proc new*(_: typeof Profile, uid, owner: ULID, displayname, bio: string): Profile =
+  return Profile(
+    uid: uid,
+    owner: owner,
+    displayname: displayname
+  )
+# Constructors end.
 
-    db.select()
-
-proc createLocalAccount*(inst: SInstance, username, email, password: string): Result[Account, string] =
-  var passwordHash: string
-
-  # TODO: How do we know when a value has been returned...?
-  inst.threadpool.awaitAll:
-    inst.threadpool.spawn crypto_pwhash_str(password) -> passwordHash
-
-  var
-    account = Account(uid: EmptyUlid, defaultProfile: EmptyUlid, username: username, tag: "")
-    accSrc = AccountSource(owner: EmptyUlid, provider: LocalCluster)
-    localAcc = LocalAccount(uid: EmptyUlid, email: email, password: passwordHash)
-    profile = Profile(uid: EmptyUlid, owner: EmptyUlid, avatar: "", displayname: username, pronouns: "", bio: "")
-
-  inst.db.withDb:
-    ensureAccountDoesntExist(inst, db, email, username, LocalCluster)
-
-    try:
-      db.transaction:
-        db.insert(account)
-        db.insert(accSrc)
-        db.insert(localAcc)
-        db.insert(profile)
-
-    except RollbackError as e:
-      return err(e.msg)
-
-  ok(account)
+proc authenticate*(account: LocalAccount, password: string): Option[Session] =
+  discard
