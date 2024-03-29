@@ -1,6 +1,8 @@
 import std/[
-  options, # Optional return types
-  tables   # Used for storing session IDs and timestamp authentication
+  strformat, # Used for string concat
+  strutils,  # Used for parsing ints
+  options,   # Optional return types
+  times      # Used for grabbing the current timestamp
 ]
 
 import nulid # Used for ULID data type
@@ -15,6 +17,9 @@ TODO: A
 type
   AccountType* = enum
     Local, External
+  
+  SessionState* = enum
+    Active, Invalid, Expired, IncorrectUser
 
   Account* = ref object
     # The ID of the account
@@ -59,7 +64,7 @@ type
 
 # API implementation start.
 # Constructors start.
-proc new*(_: typeof Account, uid: ULID, username: string, typ: AccountType
+proc newAccount*(uid: ULID, username: string, typ: AccountType
   ): Account =
   return Account(
     uid: uid,
@@ -67,14 +72,14 @@ proc new*(_: typeof Account, uid: ULID, username: string, typ: AccountType
     typ: typ
   )
 
-proc new*(_: typeof LocalAccount, uid: ULID, email, password: string): LocalAccount =
+proc newLocalAccount*(uid: ULID, email, password: string): LocalAccount =
   return LocalAccount(
     uid: uid,
     email: email,
     password: password
   )
 
-proc new*(_: typeof Profile, uid, owner: ULID, displayname, bio: string): Profile =
+proc newProfile*(uid, owner: ULID, displayname, bio: string): Profile =
   return Profile(
     uid: uid,
     owner: owner,
@@ -82,5 +87,36 @@ proc new*(_: typeof Profile, uid, owner: ULID, displayname, bio: string): Profil
   )
 # Constructors end.
 
-proc authenticate*(account: LocalAccount, password: string): Option[Session] =
-  discard
+proc authenticate*(account: LocalAccount, uid: ULID, password: string): Option[Session] =
+  if account.password != password: # TODO: Argon2
+    return none(Session)
+
+  return some(Session(
+    uid: uid,
+    owner: account.uid,
+    timestamp: (getTime() + initDuration(days=1)).toUnix
+  ))
+
+# TODO: Encryption for tokens
+proc token*(s: Session): string = &"{s.owner}.{s.uid}.{s.timestamp}"
+
+proc verifyToken*(s: Session, token: string): SessionState =
+  ## Verifies a session against a given token
+  let
+    owner = token[0..<26]
+    #uid = token[27..<53] # Unneeded
+    timestamp = token[54..^1].parseInt().int64
+
+  if s.token != token:
+    if $s.owner != owner:
+      return SessionState.IncorrectUser
+
+    elif s.timestamp > timestamp:
+      return SessionState.Expired
+
+    else:
+      return SessionState.Invalid
+
+  else:
+    return SessionState.Active
+# API implementation end.
