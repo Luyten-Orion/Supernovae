@@ -6,11 +6,13 @@ import std/[
 ]
 
 import nulid # Used for ULID data type
+import lowdb/[
+  sqlite # Used for SQLite database support
+]
 
-#[
-TODO: A
-]#
-
+import ./[
+  storage_provider # For implementing database deposit and extraction functions
+]
 
 # TODO: Maybe an abstraction that lets us group users together?
 # would be useful for profile sharing, perhaps (alt accounts)
@@ -23,8 +25,8 @@ type
 
   Account* = ref object
     # The ID of the account
-    uid*: ULID # Unique, if not primary, indexed
-    username*: string # A unique username used for identification
+    uid* {.primary.}: ULID # Account ID, primary
+    username* {.unique.}: string # A unique username used for identification
     # Discriminators, should figure out a way to
     # generate it on the db side first to prevent conflicts
     #tag*: string
@@ -33,34 +35,39 @@ type
 
   LocalAccount* = ref object
     # Local information used for authentication
-    uid*: ULID # Same as 'Account', unique, if not primary, indexed
-    email*: string # Unique, indexed
+    uid* {.primary.}: ULID # Same as 'Account', Account ID, primary
+    email* {.unique, indexed.}: string # Unique, indexed
     password*: string # Encrypted using argon2
 
   Session* = ref object
     # Sessions for local accounts, could be scanned regularly to be
     # cleaned up? Or could check every Nth login instead...
-    uid*: ULID # Unique, if not primary, indexed
-    owner*: ULID # Account.uid, indexed
+    uid* {.unique.}: ULID # Unique, if not primary, indexed
+    owner* {.indexed.}: ULID # Account.uid, indexed
     timestamp*: int64 # Timestamp storing last known usage
 
   ExternalAccount* = ref object
     # External information used for authentication
-    uid*: ULID # Same as 'Account', unique, if not primary, indexed
+    uid* {.primary.}: ULID # Same as 'Account', Account ID, primary
     home*: string # URL of home instance, maybe a reference to a 'Source'?
     authenticatedAt*: int64 # Timestamp so expiry can be checked against
 
   Profile* = ref object
     # Profiles a user can have, users can have multiple profiles,
     # but must *always* have one
-    uid*: ULID # Unique, if not primary, indexed
-    owner*: ULID # Account.uid
+    uid* {.primary.}: ULID # Profile ID, primary
+    owner* {.indexed.}: ULID # Account.uid, Account ID, indexed
     displayname*: string # Display name
     bio*: string # About me
     avatar*: string # Profile picture URL?
     # Could use a field to indicate whether it's stored on a CDN or not,
     # to shorten URLs? Something to consider.
     #isCdn*: bool
+
+# TODO: Storage provider support start.
+proc depositImpl*(provider: SQLiteProvider, acc: Account): bool =
+  discard #provider.db.exec()
+# Storage provider support end.
 
 # API implementation start.
 # Constructors start.

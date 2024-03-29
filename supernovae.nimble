@@ -12,9 +12,8 @@ bin           = @["supernovae"]
 
 requires "nim >= 2.0.2"
 #requires "https://github.com/nim-works/cps ^= 0.11.0"
-requires "malebolgia#32fd877"
 requires "libsodium#144d6d8"
 requires "mummy >= 0.4.1"
-requires "norm >= 2.8.2"
 requires "nulid >= 1.3.0"
 requires "results"
+requires "lowdb"
