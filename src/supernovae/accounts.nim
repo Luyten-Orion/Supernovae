@@ -102,6 +102,9 @@ proc token*(s: Session): string = &"{s.owner}.{s.uid}.{s.timestamp}"
 
 proc verifyToken*(s: Session, token: string): SessionState =
   ## Verifies a session against a given token
+  if token.len < 54:
+    return SessionState.Invalid
+
   let
     owner = token[0..<26]
     #uid = token[27..<53] # Unneeded
