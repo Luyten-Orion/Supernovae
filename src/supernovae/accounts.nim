@@ -6,9 +6,6 @@ import std/[
 ]
 
 import nulid # Used for ULID data type
-import lowdb/[
-  sqlite # Used for SQLite database support
-]
 
 import ./[
   storage_provider # For implementing database deposit and extraction functions

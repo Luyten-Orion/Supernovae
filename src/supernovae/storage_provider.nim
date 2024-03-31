@@ -6,35 +6,24 @@ import std/[
 ]
 
 import nulid
-# TODO: Use lower level bindings so we aren't limited to the higher level wrapper?
-import lowdb/sqlite
+import tiny_sqlite
 
 # TODO: Figure out pooling for databases
 
 type
-  DbValues = sqlite.DbValue
-
   BaseProvider* = object of RootObj
 
   SQLiteProvider* = object of BaseProvider
-    db*: sqlite.DbConn
+    db*: tiny_sqlite.DbConn
 
-# TODO: Foreign keys
+proc initSQLiteProvider*(path: string): SQLiteProvider =
+  ## Initializes a SQLite database provider
+  result = SQLiteProvider(db: tiny_sqlite.openDatabase(path))
+
+# TODO: Foreign keys, unique combination of columns
 template primary*() {.pragma.}
 template unique*() {.pragma.}
 template indexed*() {.pragma.}
-
-proc getDbTypeInternal[T: BaseProvider, U: ref object | object](provider: T,
-  typ: typedesc[U]): string =
-  ## Returns the type mapped to the appropriate db type
-  mixin getDbType
-  provider.getDbType(typ)
-
-proc getDbValueInternal[T: BaseProvider, U: ref object | object](provider: T,
-  val: U): DbValues =
-  ## Returns the value represented as the db type
-  mixin getDbValue
-  provider.getDbValue(val)
 
 proc establish*[T: BaseProvider, U: ref object](provider: T, obj: U, mine: string): bool =
   ## Establishes a table using an object to define the needed tables
@@ -54,10 +43,6 @@ proc extract*[T: BaseProvider, U: ref object | object, V: ref object](provider: 
   provider.extractImpl(idx, obj)
 
 # Start of errors for unimplemented functions.
-proc getDbType*[T: BaseProvider, U: ref object | object](provider: T, typ: typedesc[U]): string {.error:
-  &"`{$T}`.`getDbType` is unimplemented for {$U}.".}
-proc getDbValue*[T: BaseProvider, U: ref object | object](provider: T, val: U): string {.error:
-  &"`{$T}`.`getDbValue` is unimplemented for {$U}.".}
 proc establishImpl*[T: BaseProvider, U: ref object](provider: T, obj: U, mine: string): bool {.error:
   &"`{$T}`.`establishImpl` is unimplemented for {$U}.".}
 proc depositImpl*[T: BaseProvider, U: ref object](provider: T, obj: U): bool {.error:
@@ -67,26 +52,15 @@ proc extractImpl*[T: BaseProvider, U: ref object | object, V: ref object](provid
 # End of errors for unimplemented functions.
 
 # Start of SQLite implementation.
-proc getDbType*(provider: SQLiteProvider, typ: typedesc[string]): string = "TEXT"
-proc getDbValue*(provider: SQLiteProvider, val: string): sqlite.DbValue = dbValue(val)
+proc getDbType*(provider: SQLiteProvider, obj: typedesc[string]): string = "TEXT"
+proc getDbType*(provider: SQLiteProvider, obj: typedesc[seq[byte]]): string = "BLOB"
+# Limitation of SQLite, special case for uint64?
+#proc getDbType*(provider: SQLiteProvider, obj: typedesc[uint64]): string = "BLOB"
+proc getDbType*(provider: SQLiteProvider, obj: typedesc[SomeOrdinal]): string = "INTEGER"
+proc getDbType*(provider: SQLiteProvider, obj: typedesc[ULID]): string = "BLOB"
 
-proc getDbType*(provider: SQLiteProvider, typ: typedesc[ULID]): string = "BLOB"
-proc getDbValue*(provider: SQLiteProvider, val: ULID): sqlite.DbValue =
-  dbValue(cast[sqlite.DbBlob](val.toBytes()))
-
-proc getDbType*(provider: SQLiteProvider, typ: typedesc[seq[byte]]): string = "BLOB"
-proc getDbValue*(provider: SQLiteProvider, val: seq[byte]): sqlite.DbValue =
-  dbValue(cast[sqlite.DbBlob](val))
-
-proc getDbType*(provider: SQLiteProvider, typ: typedesc[bool]): string = "INTEGER"
-proc getDbValue*(provider: SQLiteProvider, val: bool): sqlite.DbValue = dbValue(val.int8)
-
-proc getDbType*(provider: SQLiteProvider, typ: typedesc[SomeInteger]): string = "INTEGER"
-proc getDbValue*(provider: SQLiteProvider, val: SomeInteger): sqlite.DbValue = dbValue(val)
-
-proc getDbType*(provider: SQLiteProvider, typ: typedesc[SomeFloat]): string = "REAL"
-proc getDbValue*(provider: SQLiteProvider, val: SomeFloat): sqlite.DbValue = dbValue(val)
-
+proc toDbValue*[T: ULID](val: T): tiny_sqlite.DbValue = toDbValue(val.toBytes)
+proc fromDbValue*[T: ULID](val: tiny_sqlite.DbValue, _: typedesc[T]): T = ULID.parse(val.blobVal)
 
 proc establishImpl*[U: ref object](provider: SQLiteProvider, obj: U, mine: string): bool =
   ## Establishes a table using an object to define the needed columns
@@ -113,8 +87,7 @@ proc establishImpl*[U: ref object](provider: SQLiteProvider, obj: U, mine: strin
   query.add(fields.join(", "))
   query.add(")")
 
-  try:
-    provider.db.exec(sql(query))
-  except sqlite.DbError:
-    return false
+  provider.db.exec(query)
+  return true
+
 # End of SQLite implementation.
