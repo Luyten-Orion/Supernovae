@@ -1,8 +1,6 @@
 import std/[
-  strformat, # Used for string concat
-  strutils,  # Used for parsing ints
-  options,   # Optional return types
-  times      # Used for grabbing the current timestamp
+  options, # Optional return types
+  times    # Used for grabbing the current timestamp
 ]
 
 import nulid # Used for ULID data type
@@ -18,38 +16,38 @@ type
     Local, External
   
   SessionState* = enum
-    Active, Invalid, Expired, IncorrectUser
+    Active, Invalid, Expired
 
-  Account* = ref object
+  Account* {.partial.} = ref object
     # The ID of the account
     uid* {.primary.}: ULID # Account ID, primary
-    username* {.unique.}: string # A unique username used for identification
+    username* {.unique, indexed.}: string # A unique username used for identification, indexed
     # Discriminators, should figure out a way to
     # generate it on the db side first to prevent conflicts
     #tag*: string
     typ*: AccountType # A local of external account
     defaultProfile*: ULID # Profile.uid, the default profile shown
 
-  LocalAccount* = ref object
+  LocalAccount* {.partial.} = ref object
     # Local information used for authentication
     uid* {.primary.}: ULID # Same as 'Account', Account ID, primary
     email* {.unique, indexed.}: string # Unique, indexed
     password*: string # Encrypted using argon2
 
-  Session* = ref object
+  Session* {.partial.} = ref object
     # Sessions for local accounts, could be scanned regularly to be
     # cleaned up? Or could check every Nth login instead...
-    uid* {.unique.}: ULID # Unique, if not primary, indexed
+    uid* {.primary.}: ULID # Session ID, primary
     owner* {.indexed.}: ULID # Account.uid, indexed
     timestamp*: int64 # Timestamp storing last known usage
 
-  ExternalAccount* = ref object
+  ExternalAccount* {.partial.} = ref object
     # External information used for authentication
     uid* {.primary.}: ULID # Same as 'Account', Account ID, primary
     home*: string # URL of home instance, maybe a reference to a 'Source'?
-    authenticatedAt*: int64 # Timestamp so expiry can be checked against
+    authenticatedAt*: int64 # Timestamp so expiry can be checked against, TODO: Flesh this system out
 
-  Profile* = ref object
+  Profile* {.partial.} = ref object
     # Profiles a user can have, users can have multiple profiles,
     # but must *always* have one
     uid* {.primary.}: ULID # Profile ID, primary
@@ -61,7 +59,7 @@ type
     # to shorten URLs? Something to consider.
     #isCdn*: bool
 
-# TODO: Storage provider support start.
+# Storage provider support start.
 proc depositImpl*(provider: SQLiteProvider, acc: Account): bool =
   discard #provider.db.exec()
 # Storage provider support end.
@@ -92,6 +90,9 @@ proc newProfile*(uid, owner: ULID, displayname, bio: string): Profile =
 # Constructors end.
 
 proc authenticate*(account: LocalAccount, uid: ULID, password: string): Option[Session] =
+  ## `account` is the account to be authenticated.
+  ## `uid` is the ID of the session.
+  ## `password` is the password of to be checked against.
   if account.password != password: # TODO: Argon2
     return none(Session)
 
@@ -101,29 +102,17 @@ proc authenticate*(account: LocalAccount, uid: ULID, password: string): Option[S
     timestamp: (getTime() + initDuration(days=1)).toUnix
   ))
 
-# TODO: Encryption for tokens
-proc token*(s: Session): string = &"{s.owner}.{s.uid}.{s.timestamp}"
+# Was originally going to encrypt tokens, but decided against it.
+proc token*(s: Session): string = $s.uid
 
 proc verifyToken*(s: Session, token: string): SessionState =
   ## Verifies a session against a given token
-  if token.len < 54:
+  if $s.uid != token:
     return SessionState.Invalid
 
-  let
-    owner = token[0..<26]
-    #uid = token[27..<53] # Unneeded
-    timestamp = token[54..^1].parseInt().int64
+  elif s.timestamp < getTime().toUnix:
+    return SessionState.Expired
 
-  if s.token != token:
-    if $s.owner != owner:
-      return SessionState.IncorrectUser
+  return SessionState.Active
 
-    elif s.timestamp > timestamp:
-      return SessionState.Expired
-
-    else:
-      return SessionState.Invalid
-
-  else:
-    return SessionState.Active
 # API implementation end.

@@ -1,1 +1,3 @@
 /supernovae
+tests/*
+!tests/*.nim

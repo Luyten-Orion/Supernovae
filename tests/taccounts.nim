@@ -18,8 +18,6 @@ test "Accounts":
 
   var se = s.get()
 
-  check verifyToken(se, se.token) == SessionState.Active # Valid token
-  check verifyToken(se, "not-a-token") == SessionState.Invalid # Not a token
-  check verifyToken(se, &"{ULID()}.{se.uid}.{se.timestamp}") == SessionState.IncorrectUser # Invalid user
-  check verifyToken(se, &"{se.owner}.{ULID()}.{se.timestamp}") == SessionState.Invalid # Invalid user
-  check verifyToken(se, &"{se.owner}.{se.uid}.0") == SessionState.Expired # Expired token
+  check verifyToken(se, se.token) == SessionState.Active
+  check verifyToken(se, "invalid") == SessionState.Invalid
+  check verifyToken(Session(uid: se.uid, timestamp: 0), se.token) == SessionState.Expired
