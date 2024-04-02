@@ -1,1 +1,1 @@
-import ./supernovae/[accounts, storage_provider]
+import ./supernovae/[accounts, repositories]
