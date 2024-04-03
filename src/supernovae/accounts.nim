@@ -80,7 +80,8 @@ proc newProfile*(uid, owner: ULID, displayname, bio: string): Profile =
   return Profile(
     uid: uid,
     owner: owner,
-    displayname: displayname
+    displayname: displayname,
+    bio: bio
   )
 # Constructors end.
 

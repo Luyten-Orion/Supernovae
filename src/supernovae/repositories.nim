@@ -23,6 +23,7 @@ type
     db*: tiny_sqlite.DbConn
 
   MineHandle*[T: Repositories] = ref object
+    # TODO: Support index querying automatically?
     provider: T
     name: string
 

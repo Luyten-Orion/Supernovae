@@ -9,8 +9,8 @@ var
   accs, local, profs: MineHandle[SQLiteRepository]
 
 let
-  accId = ulid()
-  profId = ulid()
+  accId = ULID.parse("01HTJFRZX61EH3J4NNQQ732ASB")
+  profId = ULID.parse("01HTJFRZX682ECN6W18W92S5KD")
 
 test "Initialise repository":
   repository = initSQLiteRepository("test.db")
@@ -42,7 +42,7 @@ test "Extract data":
 
   check accsRes[0].uid == accId
   check localRes[0].uid == accId
-  check profsRes[0].uid == accId
+  check profsRes[0].uid == profId
 
   check accsRes[0].typ == AccountType.Local
 
