@@ -1,13 +1,13 @@
 import std/[
   strformat,
   strutils,
-  options,
   macros
 ]
 
 import nulid
 import tiny_sqlite
 
+# TODO: PostgreSQL/other database provider implementation, likely requires me to learn and implementing pooling.
 # TODO: Figure out pooling for databases
 # TODO: Maybe a small SQL statement builder to reduce the amount of string operations done? Example from Debby
 # https://github.com/treeform/debby/blob/4ad7f6ecf60ed125672ec8ffa44becfd9c8dbb46/src/debby/common.nim#L260-L313
@@ -83,6 +83,7 @@ proc establishImpl*[U: ref object](provider: SQLiteRepository, obj: typedesc[U],
   ## Establishes a table using an object to define the needed columns
   # TODO: Migrations?
   var
+    # TODO: Avoid string interpolation? Not a concern since no input is from an untrusted source
     query = &"CREATE TABLE IF NOT EXISTS {mine} ("
     fields, indexes: seq[string]
 

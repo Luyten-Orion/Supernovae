@@ -1,4 +1,4 @@
 /supernovae
 tests/*
 !tests/*.nim
-test.db
+*.db
