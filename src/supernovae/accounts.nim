@@ -3,6 +3,7 @@ import std/[
   times    # Used for grabbing the current timestamp
 ]
 
+import libsodium/sodium
 import nulid # Used for ULID data type
 
 import ./[
@@ -70,10 +71,11 @@ proc newAccount*(uid: ULID, username: string, typ: AccountType
   )
 
 proc newLocalAccount*(uid: ULID, email, password: string): LocalAccount =
+  let pwhash = crypto_pwhash_str(password)
   return LocalAccount(
     uid: uid,
     email: email,
-    password: password
+    password: pwhash
   )
 
 proc newProfile*(uid, owner: ULID, displayname, bio: string): Profile =
@@ -85,11 +87,15 @@ proc newProfile*(uid, owner: ULID, displayname, bio: string): Profile =
   )
 # Constructors end.
 
+proc verify*(account: LocalAccount, password: string): bool =
+  ## Alias for `crypto_pwhash_str_verify(account.password, password)`
+  crypto_pwhash_str_verify(account.password, password)
+
 proc authenticate*(account: LocalAccount, uid: ULID, password: string): Option[Session] =
   ## `account` is the account to be authenticated.
   ## `uid` is the ID of the session.
   ## `password` is the password of to be checked against.
-  if account.password != password: # TODO: Argon2
+  if not account.verify(password):
     return none(Session)
 
   return some(Session(

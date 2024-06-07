@@ -1,2 +1,3 @@
 const
-  SNVersion*: string = "0.1.0"
+  NimblePkgVersion {.strdefine.} = "0.0.0"
+  SNVersion* = NimblePkgVersion

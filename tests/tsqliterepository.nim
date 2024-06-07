@@ -48,7 +48,7 @@ test "Extract data":
 
   check accsRes[0].username == "test_b"
   check localRes[0].email == "test_b"
-  check localRes[0].password == "test_b"
+  check localRes[0].verify("test_b")
   check profsRes[0].displayname == "test_b"
   check profsRes[0].bio == "test_b"
 

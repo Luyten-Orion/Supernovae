@@ -18,6 +18,7 @@ proc establishAnchor*[R: Repositories](core: SupernovaeCore[R]) =
     headers["Content-Type"] = "application/json"
     request.respond(200, headers, SupernovaeInstanceMeta(registrations: core.registrationStatus))
 
+  
 
   # Register the API endpoints.
   # TODO: Is '/api' unnecessary?
