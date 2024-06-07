@@ -1,7 +1,4 @@
 # Package
-
-import ./src/supernovae/constants
-
 version       = "0.1.0"
 author        = "Luyten Orion"
 description   = "A chat platform implemented in Nim!"
@@ -11,7 +8,6 @@ binDir        = "bin"
 bin           = @["supernovae"]
 
 # Dependencies
-
 requires "nim >= 2.0.2"
 #requires "https://github.com/nim-works/cps ^= 0.11.0"
 requires "https://github.com/tuffnatty/tiny_sqlite#eb6cbba"
