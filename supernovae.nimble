@@ -2,8 +2,8 @@
 
 import ./src/supernovae/constants
 
-version = SNVersion
-author        = "Yu-Vitaqua-fer-Chronos"
+version       = "0.1.0"
+author        = "Luyten Orion"
 description   = "A chat platform implemented in Nim!"
 license       = "MIT"
 srcDir        = "src"
