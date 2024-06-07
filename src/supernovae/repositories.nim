@@ -13,10 +13,10 @@ import tiny_sqlite
 # https://github.com/treeform/debby/blob/4ad7f6ecf60ed125672ec8ffa44becfd9c8dbb46/src/debby/common.nim#L260-L313
 
 type
-  Repositories = concept p
+  Repositories* = concept p
     p of BaseRepository
 
-  #? Could remove `BaseRepository` entirely and use the `Repositories` concept?
+  # TODO: Could remove `BaseRepository` entirely and use the `Repositories` concept?
   BaseRepository* = ref object of RootObj
 
   SQLiteRepository* = ref object of BaseRepository
@@ -27,20 +27,9 @@ type
     provider: T
     name: string
 
-template isOpen*(provider: SQLiteRepository): bool = provider.db.isOpen
-template close*(provider: SQLiteRepository) = provider.db.close
-
-proc initSQLiteRepository*(path: string): SQLiteRepository =
-  ## Initializes a SQLite database provider
-  result = SQLiteRepository(db: tiny_sqlite.openDatabase(path))
-
-# TODO: Foreign keys, multi-column constraint/indexes
-template primary*() {.pragma.}
-template unique*() {.pragma.}
-template index*() {.pragma.}
-template uniqueIndex*() {.pragma.}
-
-# TODO: Wrap errors into enum/`Result`s instead of relying on exceptions for cleaner code
+# ? At compile-time, these calls redirect to the corresponding implementation.
+# TODO: Wrap errors into enum/`Result`s instead of relying on exceptions for cleaner code.
+# TODO: Inline?
 proc establish*[T: Repositories, U: ref object](provider: T, obj: typedesc[U], mine: string): MineHandle[T] =
   ## Establishes a table using an object to define the needed tables
   mixin establishImpl
@@ -57,16 +46,31 @@ proc extract*[T: Repositories, U: ref object | object, V](mine: MineHandle[T], o
   mixin extractImpl
   result = extractImpl(mine, obj, idx, limit)
 
-# Start of fallback implementation.
+
+# ? Implementation for default behaviour on unimplemented calls.
 proc establishImpl*[T: Repositories, U: ref object](provider: T, obj: typedesc[U], mine: string
   ): MineHandle[T] {.error: &"`{$T}`.`establishImpl` is unimplemented for {$U}.".}
 proc depositImpl*[T: Repositories, U: ref object](provider: T, obj: U) {.error:
   &"`{$T}`.`depositImpl` is unimplemented for {$U}.".}
 proc extractImpl*[T: Repositories, U: ref object | object, V](mine: MineHandle[T], obj: typedesc[V],
   idx: U, limit: Natural = 0): seq[V] {.error: &"`{$T}`.`extractImpl` is unimplemented for key {$U} and type {$V}.".}
-# End of fallback implementation.
 
-# Start of SQLite implementation.
+
+# ? Start of SQLite Repository implementation.
+# TODO: Move SQLite-related code to a separate file?
+template isOpen*(provider: SQLiteRepository): bool = provider.db.isOpen
+template close*(provider: SQLiteRepository) = provider.db.close
+
+proc initSQLiteRepository*(path: string): SQLiteRepository =
+  ## Initializes a SQLite database provider
+  result = SQLiteRepository(db: tiny_sqlite.openDatabase(path))
+
+# TODO: Foreign keys, multi-column constraint/indexes
+template primary*() {.pragma.}
+template unique*() {.pragma.}
+template index*() {.pragma.}
+template uniqueIndex*() {.pragma.}
+
 proc toDbType(val: tiny_sqlite.DbValue): string =
   case val.kind
     of sqliteInteger: "INTEGER"
@@ -78,9 +82,8 @@ proc toDbType(val: tiny_sqlite.DbValue): string =
 proc toDbValue*[T: ULID](val: T): tiny_sqlite.DbValue = toDbValue(@(val.toBytes))
 proc fromDbValue*(val: tiny_sqlite.DbValue, T: typedesc[ULID]): T = ULID.fromBytes(val.blobVal)
 
-# TODO: Move SQLite-related code to a separate file?
 proc establishImpl*[U: ref object](provider: SQLiteRepository, obj: typedesc[U], mine: string): MineHandle[SQLiteRepository] =
-  ## Establishes a table using an object to define the needed columns
+  ## Establishes a table using an object to define the needed columns.
   # TODO: Migrations?
   var
     # TODO: Avoid string interpolation? Not a concern since no input is from an untrusted source
@@ -107,7 +110,7 @@ proc establishImpl*[U: ref object](provider: SQLiteRepository, obj: typedesc[U],
 
   query &= fields.join(", ") & "); " & indexes.join(";")
 
-  when defined(echoSqlStatements):
+  when defined(supernovaeEchoSqlStmts):
     debugEcho query
 
   try:
@@ -118,7 +121,7 @@ proc establishImpl*[U: ref object](provider: SQLiteRepository, obj: typedesc[U],
     raise newException(SqliteError, &"Original error: {e.msg}\nQuery: {query}", e)
 
 proc depositImpl*[U: ref object](mine: MineHandle[SQLiteRepository], obj: U) =
-  ## Deposits an object into an SQLite table
+  ## Deposits an object into an SQLite table.
   var
     query = "INSERT INTO " & mine.name & " ("
     fields: seq[string]
@@ -136,7 +139,7 @@ proc depositImpl*[U: ref object](mine: MineHandle[SQLiteRepository], obj: U) =
 
   query &= ";"
 
-  when defined(echoSqlStatements):
+  when defined(supernovaeEchoSqlStmts):
     debugEcho query
 
   try:
@@ -147,7 +150,7 @@ proc depositImpl*[U: ref object](mine: MineHandle[SQLiteRepository], obj: U) =
 # TODO: More complex/flexible queries
 proc extractImpl*[U: ref object | object, V](mine: MineHandle[SQLiteRepository], obj: typedesc[V],
   idx: U, limit: Natural = 0): seq[V] =
-  ## Extracts an object from an SQLite table
+  ## Extracts an object from an SQLite table.
   var
     query = "SELECT * FROM " & mine.name & " WHERE "
 
@@ -160,7 +163,7 @@ proc extractImpl*[U: ref object | object, V](mine: MineHandle[SQLiteRepository],
   
   query &= ";"
 
-  when defined(echoSqlStatements):
+  when defined(supernovaeEchoSqlStmts):
     debugEcho query
 
   let rows = if limit != 0:
@@ -176,5 +179,3 @@ proc extractImpl*[U: ref object | object, V](mine: MineHandle[SQLiteRepository],
       field = fromDbValue(row[name], typeof(field))
 
     result.add res
-
-# End of SQLite implementation.

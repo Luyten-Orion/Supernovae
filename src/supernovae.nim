@@ -1,31 +1,13 @@
 # TODO: Restructure code
 # TODO: Use a logging library
-from std/json import `%*`
-
-import jsony
 import mummy
-import mummy/[
-  routers
-]
 
-import ./supernovae/[constants, repositories]
+import ./supernovae/[repositories, core, api]
 
-var repo = initSQLiteRepository("supernovae.db")
-var router: Router
+var
+  repo = initSQLiteRepository("supernovae.db")
+  snCore = SupernovaeCore[SQLiteRepository](repo: repo)
 
-# TODO: Figure out a better way to define API routes
-proc apiRoot(request: Request) =
-  var headers: HttpHeaders
-  headers["Content-Type"] = "application/json"
-  request.respond(200, headers, "{\"version\":\"" & SNVersion & "\"}")
+snCore.establishAnchor()
 
-proc accountsRoot(request: Request) =
-  var headers: HttpHeaders
-  headers["Content-Type"] = "text/plain"
-  request.respond(200, headers, "Hello, World!")
-
-router.get("/api", apiRoot)
-
-let server = newServer(router)
-echo "Serving on http://localhost:8080"
-server.serve(Port(8080))
+snCore.ignite(Port(8080))
