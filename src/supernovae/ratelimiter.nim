@@ -19,11 +19,8 @@ proc newLimiter*(): Limiter =
   newTable[string, Table[string, Limit]]()
 
 # TODO: Logic for a cycler that clears out entries that haven't been accessed in a while?
-proc check*(limiter: Limiter, endpoint: string, uid: string, cooldown: Duration): bool =
-  ## Returns true if the request is allowed to proceed, false otherwise.
-  # Set the time the endpoint was last accessed so that it can be deleted.
-  limiter[endpoint][uid].lastAccessed = now()
-
+proc check*(limiter: Limiter, endpoint: string, maxHits: Limit.maxHits, uid: string, cooldown: Duration): int64 =
+  ## Returns the duration left until the request can be made, will return 0 if the request can be made just fine.
   # Create the limiter for the endpoint if it doesn't exist.
   if not limiter.hasKey(endpoint):
     limiter[endpoint] = initTable[string, Limit]()
@@ -31,21 +28,24 @@ proc check*(limiter: Limiter, endpoint: string, uid: string, cooldown: Duration)
   # Check if the given uid is in the limiter, create it if it doesn't exist.
   if not limiter[endpoint].hasKey(uid):
     limiter[endpoint][uid] = Limit(cooldown: cooldown, hits: 1)
-    return
+    return 0
 
   let limit = limiter[endpoint][uid]
+
+  # Set the time the endpoint was last accessed so that it can be deleted.
+  limit.lastAccessed = now()
 
   # Check if the limit has been hit.
   if limit.hits >= limit.maxHits:
     # Reset the limiter if the elapsed time has exceeded the cooldown.
     if now() >= limit.waitTime:
       limit.hits = 1
-      return true
+      return 0
 
     else:
       # Set the cooldown if the ratelimit has been hit.
       limit.waitTime = now() + limit.cooldown
-      return
+      return (now() - limiter[endpoint][uid].waitTime).inSeconds
 
   inc limit.hits
-  return true
+  return 0

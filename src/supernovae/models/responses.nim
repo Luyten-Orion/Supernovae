@@ -13,3 +13,20 @@ type
     ## The metadata for the supernovae instance, used for the root API response.
     version*: string = SNVersion
     registrations*: SupernovaeRegistationsStatus
+
+  MalformedJsonBodyError* = object
+    error*: string = "Malformed JSON Body"
+    msg*: string
+
+  MissingRequiredDataError* = object
+    error*: string = "Missing Required Data"
+    msg*: string
+
+  ExcessiveDataProvidedError* = object
+    error*: string = "Excessive Data Provided"
+    msg*: string
+
+  RatelimitedError* = object
+    error*: string = "Ratelimited"
+    seconds*: int64
+    msg*: string

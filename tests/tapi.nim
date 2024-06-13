@@ -1,16 +1,17 @@
 # TODO: Finish test
-import std/[unittest, os]
+import std/[unittest, json, os]
 
 import taskpools
 import puppy
 import jsony
+import nulid
 
 import supernovae/[repositories, constants, core, api]
 import supernovae/models/responses
 
 var
   repo = initSQLiteRepository("supernovae.db")
-  snCore = SupernovaeCore(repo: repo)
+  snCore = SupernovaeCore(repo: repo, idgen: initUlidGenerator())
 
 snCore.establishAnchor()
 
@@ -34,6 +35,14 @@ suite "API":
   test "API Root":
     check get("http://localhost:8080/api").body.fromJson(SupernovaeInstanceMeta) == SupernovaeInstanceMeta(
       registrations: snCore.registrationStatus, version: SNVersion)
+
+  test "Account registration (Success)":
+    let body = %*{
+      "username": "test",
+      "email": "test@test.test",
+      "password": "t35t"
+    }
+    echo post("http://localhost:8080/api/account/register", body = $body).body
 
 snCore.extinguish()
 taskpool.shutdown()

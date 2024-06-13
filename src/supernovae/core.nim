@@ -1,9 +1,10 @@
+import nulid
 import mummy
 import mummy/[
   routers
 ]
 
-import ./[repositories, ratelimiter]
+import ./[repositories, ratelimiter, accounts]
 import ./models/responses
 
 type
@@ -11,11 +12,18 @@ type
     repo*: Repository
     router*: Router
     server*: Server
+    idgen*: ULIDGenerator
     ratelimiter*: Limiter = newLimiter()
     registrationStatus*: SupernovaeRegistationsStatus
 
 proc ignite*(core: SupernovaeCore, port: Port, address: string = "localhost") =
   # Starts the supernovae server.
+  core.repo.establish(Session)
+  core.repo.establish(Account)
+  core.repo.establish(LocalAccount)
+  core.repo.establish(ExternalAccount)
+  core.repo.establish(Profile)
+
   core.server = newServer(core.router)
   core.server.serve(port, address)
 
@@ -25,4 +33,4 @@ proc extinguish*(core: SupernovaeCore) =
   core.repo.seal()
   core.server = nil
 
-export Port
+export Port, check
