@@ -1,27 +1,24 @@
-import jsony
+## Defines the the models used for responses from the server.
+## TODO: Split this into several submodules for different functionalities?
+import std/strutils
 
 import ../constants
 
 type
   SupernovaeRegistationsStatus* = enum
-    Open, Gated, Closed
+    ## The user registration status of the supernovae instance.
+    Open = "open", Gated = "gated", GatedLocal = "gated-local",
+    GatedExternal = "gated-external", Closed = "closed"
 
   SupernovaeInstanceMeta* = object
+    ## The metadata for the supernovae instance, used for the root API response.
     version*: string = SNVersion
     registrations*: SupernovaeRegistationsStatus
 
-func dumpHook*(v: var string, e: SupernovaeRegistationsStatus) =
-  v.add case e
-  of Open: "open"
-  of Gated: "gated"
-  of Closed: "closed"
-
-func parseHook*(s: string, i: var int, v: var SupernovaeRegistationsStatus) =
-  var res: string
-  parseHook(s, i, res)
-
-  v = case res
-  of "open": Open
-  of "gated": Gated
-  of "closed": Closed
-  else: raise newException(ValueError, "Invalid registration status: " & res)
+proc `$`*(status: SupernovaeRegistationsStatus): string =
+  case status
+  of Open: "Open"
+  of Gated: "Gated"
+  of GatedLocal: "GatedLocal"
+  of GatedExternal: "GatedExternal"
+  of Closed: "Closed"

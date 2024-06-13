@@ -1,10 +1,11 @@
+## Implements a basic account system and the functionality required to manage it.
 import std/[
   options, # Optional return types
   times    # Used for grabbing the current timestamp
 ]
 
-import libsodium/sodium
-import nulid # Used for ULID data type
+import libsodium/sodium # Used for password hashing.
+import nulid            # Used for ULID data type
 
 import ./[
   repositories # For implementing database deposit and extraction functions
@@ -15,17 +16,28 @@ import ./[
 type
   AccountType* = enum
     Local, External
+
+  AccountFlags* {.size(sizeof(byte)).} = enum
+    ## Flags an account can have.
+    AwaitingApproval ## Account is awaiting approval by admin.
+    ## Account has been verified as an official account recognised by the
+    ## instance admins.
+    Verified
+    Architect ## Account belongs to a server admin.
+    Servitor ## Account belongs to a bot or another service.
   
   SessionState* = enum
+    ## The possible states of a session
     Active, Invalid, Expired
 
   Account* = ref object
-    # The ID of the account
+    # An account type used for access to an instance.
     uid* {.primary.}: ULID # Account ID, primary
     username* {.unique.}: string # A unique username used for identification
     # Discriminators, should figure out a way to
     # generate it on the db side first to prevent conflicts
     #tag*: string
+    flags*: set[AccountFlags] # Flags that an account can have
     typ*: AccountType # A local of external account
     defaultProfile*: ULID # Profile.uid, the default profile shown
 
@@ -36,7 +48,7 @@ type
     password*: string # Encrypted using argon2
 
   Session* = ref object
-    # Sessions for local accounts, could be scanned regularly to be
+    # Sessions for local accounts, possibly external accounts, could be scanned regularly to be
     # cleaned up? Or could check every Nth login instead...
     uid* {.primary.}: ULID # Session ID, primary
     owner*: ULID # Account.uid
@@ -45,8 +57,10 @@ type
   ExternalAccount* = ref object
     # External information used for authentication
     uid* {.primary.}: ULID # Same as 'Account', Account ID, primary
-    home*: string # URL of home instance, maybe a reference to a 'Source'?
-    authenticatedAt*: int64 # Timestamp so expiry can be checked against, TODO: Flesh this system out
+    home*: string # URL of home instance, maybe a reference to a 'Source' type?
+    # Timestamp so expiry can be checked against
+    # TODO: Flesh this system out
+    authenticatedAt*: int64
 
   Profile* = ref object
     # Profiles a user can have, users can have multiple profiles,

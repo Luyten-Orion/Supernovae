@@ -1,3 +1,5 @@
+## Defines the API routes for supernovae, gluing everything together.
+## TODO: Should we split this into several submodules for different functionalities?
 import std/json
 import jsony
 import mummy
@@ -5,13 +7,13 @@ import mummy/[
   routers
 ]
 
-import ./[core, accounts, constants, repositories]
+import ./[core, repositories]
 import ./models/responses
 
 template respond[T](request: Request, code: int, headers: HttpHeaders, body: T) =
   request.respond(code, headers, toJson[T](body))
 
-proc establishAnchor*[R: Repositories](core: SupernovaeCore[R]) =
+proc establishAnchor*(core: SupernovaeCore) =
   ## Registers the API endpoints.
   proc apiRoot(request: Request) {.gcsafe.} =
     var headers: HttpHeaders
