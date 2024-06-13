@@ -1,4 +1,4 @@
-import std/[strformat, unittest, options]
+import std/[unittest, options]
 
 import nulid
 

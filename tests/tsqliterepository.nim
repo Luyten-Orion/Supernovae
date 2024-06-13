@@ -5,8 +5,7 @@ import nulid
 import supernovae/[repositories, accounts]
 
 var
-  repository: SQLiteRepository
-  accs, local, profs: MineHandle[SQLiteRepository]
+  repository: Repository
 
 let
   accId = ULID.parse("01HTJFRZX61EH3J4NNQQ732ASB")
@@ -14,27 +13,27 @@ let
 
 test "Initialise repository":
   repository = initSQLiteRepository("test.db")
-  check repository.isOpen
+  check repository.isUnsealed
 
 test "Establish tables":
-  accs = repository.establish(Account, "accounts")
-  local = repository.establish(LocalAccount, "local_accounts")
-  profs = repository.establish(Profile, "profiles")
+  repository.establish(Account)
+  repository.establish(LocalAccount)
+  repository.establish(Profile)
 
 test "Deposit data":
-  accs.deposit(newAccount(accId, "test_a", AccountType.Local))
-  local.deposit(newLocalAccount(accId, "test_a", "test_a"))
-  profs.deposit(newProfile(profId, accId, "test_a", "test_a"))
+  repository.deposit(newAccount(accId, "test_a", AccountType.Local))
+  repository.deposit(newLocalAccount(accId, "test_a", "test_a"))
+  repository.deposit(newProfile(profId, accId, "test_a", "test_a"))
 
-  accs.deposit(newAccount(accId, "test_b", AccountType.Local))
-  local.deposit(newLocalAccount(accId, "test_b", "test_b"))
-  profs.deposit(newProfile(profId, accId, "test_b", "test_b"))
+  repository.deposit(newAccount(accId, "test_b", AccountType.Local))
+  repository.deposit(newLocalAccount(accId, "test_b", "test_b"))
+  repository.deposit(newProfile(profId, accId, "test_b", "test_b"))
 
 test "Extract data":
   var
-    accsRes = accs.extract(Account, accId)
-    localRes = local.extract(LocalAccount, accId)
-    profsRes = profs.extract(Profile, profId)
+    accsRes = repository.extract(Account, accId)
+    localRes = repository.extract(LocalAccount, accId)
+    profsRes = repository.extract(Profile, profId)
   
   check accsRes.len == 1
   check localRes.len == 1
@@ -53,4 +52,4 @@ test "Extract data":
   check profsRes[0].bio == "test_b"
 
 
-repository.close()
+repository.seal()

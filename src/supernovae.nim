@@ -3,7 +3,6 @@
 import mummy
 
 import ./supernovae/[repositories, core, api]
-import ./supernovae/repositories/sqlite
 
 var
   repo = initSQLiteRepository("supernovae.db")

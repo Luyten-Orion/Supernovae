@@ -10,7 +10,7 @@ import supernovae/models/responses
 
 var
   repo = initSQLiteRepository("supernovae.db")
-  snCore = SupernovaeCore[SQLiteRepository](repo: repo)
+  snCore = SupernovaeCore(repo: repo)
 
 snCore.establishAnchor()
 

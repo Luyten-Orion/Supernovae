@@ -1,18 +1,16 @@
 ## Implements the logic for the SQLite repository.
-import std/[strformat, strutils]
+import std/[strformat, strutils, macros]
 
 import nulid
+import jsony
 import tiny_sqlite
 
-import ../repositories
+import ./base
 
 # ? Start of SQLite Repository implementation.
 type
-  SQLiteRepository* = ref object of Repository
+  SQLiteRepository* = ref object of BaseRepository
     db*: tiny_sqlite.DbConn
-
-proc isUnsealedImpl(provider: SQLiteRepository): bool = provider.db.isOpen
-proc sealImpl(provider: SQLiteRepository) = provider.db.close
 
 proc toDbType(val: tiny_sqlite.DbValue): string =
   case val.kind
@@ -22,15 +20,32 @@ proc toDbType(val: tiny_sqlite.DbValue): string =
     of sqliteBlob: "BLOB"
     of sqliteNull: raise newException(ValueError, "Value can't be nil!")
 
-proc toDbValue[T: ULID](val: T): tiny_sqlite.DbValue = toDbValue(@(val.toBytes))
-proc fromDbValue(val: tiny_sqlite.DbValue, T: typedesc[ULID]): T = ULID.fromBytes(val.blobVal)
+proc toDbValue*[T: ULID](val: T): tiny_sqlite.DbValue = toDbValue(@(val.toBytes))
+proc fromDbValue*(val: tiny_sqlite.DbValue, T: typedesc[ULID]): T = ULID.fromBytes(val.blobVal)
 
-proc establishImpl[U: ref object](provider: SQLiteRepository, obj: typedesc[U], mine: string) =
+proc toDbValue*[T: set](val: T): tiny_sqlite.DbValue =
+  toDbValue(val.toJson)
+
+proc fromDbValue*[T: set](val: tiny_sqlite.DbValue, _: typedesc[T]): T =
+  fromJson(val.strVal, T)
+
+proc initSQLiteRepositoryImpl*(path: string): SQLiteRepository =
+  ## Initializes a SQLite database provider
+  result = SQLiteRepository(db: tiny_sqlite.openDatabase(path))
+
+proc isUnsealedImpl*(provider: SQLiteRepository): bool =
+  ## Returns true if the database is open, false otherwise.
+  provider.db.isOpen
+proc sealImpl*(provider: SQLiteRepository) =
+  ## Closes the database.
+  provider.db.close
+
+proc establishImpl*[U: ref object](provider: SQLiteRepository, obj: typedesc[U]) =
   ## Establishes a table using an object to define the needed columns.
   # TODO: Migrations?
   var
     # TODO: Avoid string interpolation? Not a concern since no input is from an untrusted source
-    query = &"CREATE TABLE IF NOT EXISTS {mine} ("
+    query = &"CREATE TABLE IF NOT EXISTS {$U} ("
     fields, indexes: seq[string]
 
   for fname, field in new(obj)[].fieldPairs:
@@ -44,10 +59,10 @@ proc establishImpl[U: ref object](provider: SQLiteRepository, obj: typedesc[U], 
       fieldStr &= " UNIQUE"
 
     if field.hasCustomPragma(uniqueIndex):
-      indexes.add &"CREATE UNIQUE INDEX IF NOT EXISTS uidx_{mine}_{name} ON {mine} ({name})"
+      indexes.add &"CREATE UNIQUE INDEX IF NOT EXISTS uidx_{$U}_{name} ON {$U} ({name})"
 
     if field.hasCustomPragma(index):
-      indexes.add &"CREATE INDEX IF NOT EXISTS idx_{mine}_{name} ON {mine} ({name})"
+      indexes.add &"CREATE INDEX IF NOT EXISTS idx_{$U}_{name} ON {$U} ({name})"
 
     fields &= fieldStr
 
@@ -62,7 +77,7 @@ proc establishImpl[U: ref object](provider: SQLiteRepository, obj: typedesc[U], 
   except SqliteError as e:
     raise newException(SqliteError, &"Original error: {e.msg}\nQuery: {query}", e)
 
-proc depositImpl[U: ref object](provider: SQLiteRepository, obj: U) =
+proc depositImpl*[U: ref object](provider: SQLiteRepository, obj: U) =
   ## Deposits an object into an SQLite table.
   var
     query = "INSERT INTO " & $U & " ("
@@ -90,13 +105,16 @@ proc depositImpl[U: ref object](provider: SQLiteRepository, obj: U) =
     raise newException(SqliteError, &"Original error: {e.msg}\nQuery: {query}", e)
 
 # TODO: More complex/flexible queries
-proc extractImpl[U: ref object | object, V: ref object](provider: SQLiteRepository, obj: typedesc[V],
-  idx: U, limit: Natural = 0): seq[V] =
+proc extractImpl*[U: ref object, V](provider: SQLiteRepository, obj: typedesc[U],
+  idx: V, limit: Natural = 0): seq[U] =
   ## Extracts an object from an SQLite table.
-  # TODO: Don't use string concatenation
-  var query = "SELECT * FROM " & $V & " WHERE "
+  var
+    query = "SELECT * FROM " & $U & " WHERE "
 
-  for name, field in default(V)[].fieldPairs:
+  var tmp: U
+  new(tmp)
+
+  for name, field in tmp[].fieldPairs:
     query.add name & " = ?"
     break
 
@@ -121,13 +139,3 @@ proc extractImpl[U: ref object | object, V: ref object](provider: SQLiteReposito
       field = fromDbValue(row[name], typeof(field))
 
     result.add res
-
-proc initSQLiteRepository*(path: string): SQLiteRepository =
-  ## Initializes a SQLite database provider
-  result = SQLiteRepository(db: tiny_sqlite.openDatabase(path))
-
-  result.isUnsealedImpl = (proc (r: SQLiteRepository): bool)isUnsealedImpl
-  result.sealImpl = (proc (r: SQLiteRepository))sealImpl
-  result.establishImpl = (proc (r: SQLiteRepository, obj: typedesc[ref object], mine: string))establishImpl
-  result.depositImpl = (proc (r: SQLiteRepository, obj: ref object))depositImpl
-  result.extractImpl = (proc (r: SQLiteRepository, obj: typedesc[ref object], idx: object | ref object, limit: Natural = 0): seq[ref object])extractImpl
