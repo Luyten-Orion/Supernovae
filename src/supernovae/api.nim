@@ -48,6 +48,10 @@ proc establishAnchor*(core: SupernovaeCore) =
       request.respond(429, headers, RatelimitedError(seconds: ratelimit, msg: "Ratelimit exceeded for account registration!"))
       return
 
+    case core.repo.kind
+      of SQLite:
+        discard
+
     let localAcc = newLocalAccount(core.idgen.ulid, accRegistration.email, accRegistration.password)
     let acc = newAccount(localAcc.uid, accRegistration.username, AccountType.Local)
     let prf = newProfile(core.idgen.ulid, acc.uid, accRegistration.username, "")
