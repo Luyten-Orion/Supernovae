@@ -23,6 +23,16 @@ proc toDbType(val: tiny_sqlite.DbValue): string =
 proc toDbValue*[T: ULID](val: T): tiny_sqlite.DbValue = toDbValue(@(val.toBytes))
 proc fromDbValue*(val: tiny_sqlite.DbValue, T: typedesc[ULID]): T = ULID.fromBytes(val.blobVal)
 
+proc toDbValue*(val: RepoValue): DbValue =
+  case val.kind
+    of String: toDbValue(val.strVal)
+    of Blob: toDbValue(val.blobVal)
+    of Int: toDbValue(val.intVal)
+    of Float: toDbValue(val.floatVal)
+    of Bool: toDbValue(val.boolVal)
+    of ULID_T: toDbValue(val.ulidVal)
+    of Null: DbValue(kind: sqliteNull)
+
 proc toDbValue*[T: set](val: T): tiny_sqlite.DbValue =
   toDbValue(val.toJson)
 
@@ -131,6 +141,54 @@ proc extractImpl*[U: ref object, V](provider: SQLiteRepository, obj: typedesc[U]
 
   else:
     provider.db.all(query, params = [idx.toDbValue])
+
+  for row in rows:
+    var res = new obj
+
+    for name, field in res[].fieldPairs:
+      field = fromDbValue(row[name], typeof(field))
+
+    result.add res
+
+
+proc excavateImpl*[U: ref object](provider: SQLiteRepository, obj: typedesc[U],
+  query: Query): seq[U] =
+  ## Extracts objects from an SQLite table using a query.
+  var
+    queryStr = "SELECT * FROM " & $U & " WHERE "
+    values: seq[DbValue]
+
+  for q in query.slCond.whConds:
+    let op = case q.kind
+      of EQ: "="
+      of NEQ: "!="
+      of GT: ">"
+      of LT: "<"
+      of GTE: ">="
+      of LTE: "<="
+      else:
+        raise newException(UnimplementedQueryBehaviour, "Expected `==`, `!=`, `>=`, `<=`, `>` or `<`!")
+        return
+
+    queryStr &= "(" & q.tgField & " " & op & " ?) AND "
+    values.add q.tgValue.toDbValue
+
+  queryStr = queryStr[0..^5]
+
+  if query.slCount > 0:
+    queryStr &= " LIMIT ?"
+    values.add query.slCount.toDbValue
+
+  if query.slOffset > 0:
+    queryStr &= " OFFSET ?"
+    values.add query.slOffset.toDbValue
+
+  queryStr &= ";"
+
+  when defined(supernovaeEchoSqlStmts):
+    debugEcho queryStr
+
+  let rows = provider.db.all(queryStr, params = values)
 
   for row in rows:
     var res = new obj

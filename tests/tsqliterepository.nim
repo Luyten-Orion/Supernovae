@@ -30,8 +30,11 @@ test "Deposit data":
   repository.deposit(newProfile(profId, accId, "test_b", "test_b"))
 
 test "Extract data":
+  let query = queryIt Account:
+    select 1, where it.uid == accId
+
   var
-    accsRes = repository.extract(Account, accId)
+    accsRes = repository.excavate(Account, query)
     localRes = repository.extract(LocalAccount, accId)
     profsRes = repository.extract(Profile, profId)
   
