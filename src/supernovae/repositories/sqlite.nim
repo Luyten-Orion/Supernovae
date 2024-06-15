@@ -168,7 +168,6 @@ proc excavateImpl*[U: ref object](provider: SQLiteRepository, obj: typedesc[U],
       of LTE: "<="
       else:
         raise newException(UnimplementedQueryBehaviour, "Expected `==`, `!=`, `>=`, `<=`, `>` or `<`!")
-        return
 
     queryStr &= "(" & q.tgField & " " & op & " ?) AND "
     values.add q.tgValue.toDbValue

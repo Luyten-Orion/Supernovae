@@ -11,8 +11,20 @@ type
 
   SupernovaeInstanceMeta* = object
     ## The metadata for the supernovae instance, used for the root API response.
+    displayname*: string = "Unnamed Supernovae"
     version*: string = SNVersion
     registrations*: SupernovaeRegistationsStatus
+
+  SupernovaeSuccess* = object
+    success*, msg*: string
+
+  SupernovaeError* = object
+    error*, msg*: string
+
+  InternalError* = object
+    error*: string = "Internal Error"
+    uid*: string # Unique ID for error to allow easy tracking
+    msg*: string
 
   MalformedJsonBodyError* = object
     error*: string = "Malformed JSON Body"

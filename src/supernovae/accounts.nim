@@ -52,7 +52,7 @@ type
     # cleaned up? Or could check every Nth login instead...
     uid* {.primary.}: ULID # Session ID, primary
     owner*: ULID # Account.uid
-    timestamp*: int64 # Timestamp storing last known usage
+    timestamp*: int64 # Timestamp for when the session expires
 
   ExternalAccount* = ref object
     # External information used for authentication
