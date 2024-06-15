@@ -4,6 +4,6 @@ import supernovae/[repositories, accounts]
 
 test "Building a query":
   var query = queryIt Account:
-    select 1, where it.username == "test"
+    select where "test" == it.username
 
-  echo query.repr
+  echo $query

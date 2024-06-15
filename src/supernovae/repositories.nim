@@ -71,13 +71,13 @@ type
     # LTE - Less Than or Equal
     Empty, Select, Where, EQ, NEQ, GT, LT, GTE, LTE
 
-  Query* {.acyclic.} = ref object
+  QueryObj* = object
     case kind*: QueryKind
       of Empty:
         discard
 
       of Select:
-        slCount*: Natural
+        slCount*, slOffset*: Natural
         slCond*: Query
 
       of Where:
@@ -87,8 +87,18 @@ type
         tgField*: string
         tgValue*: RepoValue
 
-macro queryItImpl[T](body: untyped) =
-  echo body.treeRepr
+  Query* = ref QueryObj
+
+proc `$`*(query: Query): string =
+  if query != nil:
+    return $query[]
+  "Query(nil)"
+
+macro queryIt*[T: ref object](typ: typedesc[T], body: untyped): Query =
+  ## Translates a very limited subset of Nim to a `Query` object which is then used to
+  ## provide repository-agnostic access to a database.
+  ## The proc's usage can be understood as followed:
+  ## `queryIt <Ref Type>: select [limit [, offset],] where <condition>`
   var
     query = Query(kind: Select, slCount: 0, slCond: Query(kind: Where))
     curNode = body
@@ -110,14 +120,24 @@ macro queryItImpl[T](body: untyped) =
     error("Expected a `select` statement!", curNode)
     return
 
-  if curNode.len notin [2, 3]:
-    error("Expected either 1 or 2 arguments in the `select` statement! The limit is optional, but the where clause is not!", curNode)
+  if curNode.len notin [2, 3, 4]:
+    error("Expected anywhere between 1 and 3 arguments in the `select` statement! The limit is optional, but the where clause is not!", curNode)
     return
 
   if curNode.len == 3:
     result.add newAssignment(
       newDotExpr(result[0][0][0], ident("slCount")),
       curNode[1]
+    )
+
+  elif curNode.len == 4:
+    result.add newAssignment(
+      newDotExpr(result[0][0][0], ident("slCount")),
+      curNode[1]
+    )
+    result.add newAssignment(
+      newDotExpr(result[0][0][0], ident("slOffset")),
+      curNode[2]
     )
 
   curNode = curNode[^1]
@@ -164,32 +184,50 @@ macro queryItImpl[T](body: untyped) =
         return
     )
 
+    var
+      itField, itCmpValue: NimNode
+
     if node[1].kind != nnkDotExpr:
-      error("Expected a dot expression!", node[1])
-      return
+      if node[2].kind != nnkDotExpr:
+        error("Expected `it` in either side of the query!", node)
+        return
 
-    if node[1][0].kind != nnkIdent or node[1][0].strVal != "it":
-      error("Expected `it`!", node[1][0])
-      return
+      if node[2][0].kind != nnkIdent or node[2][0].strVal != "it":
+        error("Expected `it`!", node[2][0])
+        return
 
-    if node[1][1].kind != nnkIdent:
-      error("Expected an identifier!", node[1][1])
-      return
+      if node[2][1].kind != nnkIdent:
+        error("Expected access to a field!", node[2][1])
+        return
 
-    q.tgField = node[1][1].strVal
+      itField = node[2]
+      itCmpValue = node[1]
 
-    echo T.treeRepr
-    result.add newCall(
+    else:
+      if node[1][0].kind != nnkIdent or node[1][0].strVal != "it":
+        error("Expected `it`!", node[1][0])
+        return
+
+      if node[1][1].kind != nnkIdent:
+        error("Expected access to a field!", node[1][1])
+        return
+
+      itField = node[1]
+      itCmpValue = node[2]
+
+    q.tgField = itField[1].strVal
+
+    result.add newCall(bindSym"assert", newCall(
       bindSym"is",
       newDotExpr(
-        bindSym("wah"),
-        node[2]
+        typ,
+        ident(q.tgField)
       ),
       newCall(
         bindSym"typeof",
-        node[2]
+        itCmpValue
       )
-    )
+    ), newLit("`" & itCmpValue.repr & "` does not match the type of `" & typ.repr & "`!"))
 
     template newBracketExpr(a: NimNode, b: NimNode): NimNode =
       var n = newNimNode(nnkBracketExpr)
@@ -212,37 +250,16 @@ macro queryItImpl[T](body: untyped) =
       ),
       newCall(
         bindSym"toRepoValue",
-        node[2]
+        itCmpValue
       )
     )
 
     query.slCond.whConds.add q
     inc i
 
-  if result.len > 1:
-    result.add result[0][0][0]
-  else:
-    result = newLit(query)
+  result.add result[0][0][0]
 
   qNode[] = newLit(query)[]
-
-  echo result.repr
-
-template queryIt*(typ: typedesc[ref object], body: untyped): Query =
-  queryItImpl[typ](body)
-
-#[
-macro selectIt*(typ: typedesc[ref object], limit: int, body: typed): Query =
-  result = newStmtList(newVarStmt(genSym(nskVar, "query"), newLit(Query(kind: Select, slCond: nil))))
-  #var query = Query(kind: Select, slCount: limit, slCond: Query(kind: Empty))
-
-  result.add newAssignment(
-    newDotExpr(result[0], ident("slCount")),
-    limit
-  )
-
-  result.add result[0][0][0]
-]#
 
 # Export the pragmas
 export primary, unique, index, uniqueIndex

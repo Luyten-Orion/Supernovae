@@ -45,7 +45,7 @@ type
     # Local information used for authentication
     uid* {.primary.}: ULID # Same as 'Account', Account ID, primary
     email* {.unique.}: string # Unique
-    password*: string # Encrypted using argon2
+    password*: string # Hashed using argon2
 
   Session* = ref object
     # Sessions for local accounts, possibly external accounts, could be scanned regularly to be

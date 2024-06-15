@@ -3,5 +3,6 @@
     "[nim]": {
         "editor.indentSize": 2
     },
-    "editor.tabSize": 2
+    "editor.tabSize": 2,
+    "remote.autoForwardPortsFallback": 0
 }
